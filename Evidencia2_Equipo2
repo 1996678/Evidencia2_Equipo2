@@ -1,0 +1,477 @@
+import datetime
+import re
+import csv
+import os
+import openpyxl
+import numpy as np
+
+class RegistroNota:
+    def __init__(self, nombrecliente, folio, fechanota, correocliente, rfc_cliente):
+        self.folio = folio
+        self.fecha = fechanota
+        self.nombrecliente = nombrecliente
+        self.correo=correocliente
+        self.rfc=rfc_cliente
+        self.servicios = {}
+        self.cancelada = False
+
+    def agregar_servicio(self, nombreservicio, costoservicio):
+        while True:
+            if costoservicio.strip()== '':
+                print('NO ES POSIBLE DEJAR EL COSTO EN BLANCO, INTENTE DE NUEVO')
+
+            elif not costoservicio.isdigit():
+                print('HA INGRESADO LETRAS EN VEZ DE NÚMEROS, INTENTE DE NUEVO')
+
+            elif float(costoservicio) <= 0:
+                print('EL COSTO DEL SERVICIO DEBE SER MAYOR A 0, INTENTE DE NUEVO')
+
+            else:
+                self.servicios[nombreservicio] = float(costoservicio)
+                break
+
+            costoservicio=input("Ingrese el costo del servicio otra vez: ").strip()
+
+    def total_nota(self):
+        total_nota = sum(self.servicios.values())
+        return total_nota
+
+
+def guardar_estado(listanotas):
+    with open('notas.csv', 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["Folio", "Fecha", "Nombre del Cliente", "RFC", "Correo Electrónico", "Servicios"])
+
+        for nota in listanotas:
+            servicios = [f"{nombre}: {costo}" for nombre, costo in nota.servicios.items()]
+            servicios_str = ', '.join(servicios)
+            writer.writerow([nota.folio, nota.fecha, nota.nombrecliente, nota.rfc, nota.correo, servicios_str])
+
+
+def cargar_estado(listanotas):
+    if os.path.exists('notas.csv'):
+        with open('notas.csv', 'r', newline='') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                servicios = {nombre: float(costo) for nombre, costo in (item.split(': ') for item in row['Servicios'].split(', '))}
+                nota = RegistroNota(row['Nombre del Cliente'], int(row['Folio']),
+                                datetime.datetime.strptime(row[
+                                    'Fecha'], "%Y-%m-%d").date(),
+                                row['Correo Electrónico'], row['RFC'])
+                nota.servicios = servicios
+                nota.cancelada = row.get('Cancelada', 'False') == 'True'
+                listanotas.append(nota)
+    else:
+        print("\nNO SE ENCUENTRA NINGÚN ARCHIVO DE 'notas.csv'. SE PARTE DE UN ESTADO INICIAL VACÍO.")
+
+
+
+listanotas = []
+NotasCanceladas = []
+notas_rfc=[]
+rfcs_unicos = []
+cargar_estado(listanotas)
+
+def CrearNota():
+    foliomax = max([nota.folio for nota in listanotas] + [0])
+
+    while True:
+        try:
+            folio = foliomax + 1
+
+            nombrecliente = input("Ingrese el nombre del cliente a almacenar: ")
+
+            if nombrecliente.strip() == '':
+                print("NO ES POSIBLE DEJAR EL NOMBRE DEL CLIENTE EN BLANCO, INTENTE DE NUEVO")
+
+            elif nombrecliente.isdigit():
+                print("HA INGRESADO NÚMEROS EN VEZ DE LETRAS, INTENTE DE NUEVO")
+
+            else:
+                while True:
+                    fechanota = input("Ingrese la fecha de la nota (DD-MM-AAAA): ")
+                    try:
+                        fechanota = datetime.datetime.strptime(fechanota, "%d-%m-%Y").date()
+                        if fechanota > datetime.date.today():
+                            print("LA FECHA INGRESADA ES POSTERIOR A LA FECHA DE HOY, INTENTE DE NUEVO")
+                        else:
+                            break
+                    except ValueError:
+                        print("EL FORMATO DE LA FECHA ES INCORRECTO, INTENTE DE NUEVO")
+
+                while True:
+                    correocliente = input("Ingrese el correo electrónico del cliente (formato: tunombre@ejemplo.com): ")
+                    validacion="(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*|\"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*\")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:(2(5[0-5]|[0-4][0-9])|1[0-9][0-9]|[1-9]?[0-9]))\.){3}(?:(2(5[0-5]|[0-4][0-9])|1[0-9][0-9]|[1-9]?[0-9])|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\])"
+
+                    if correocliente.strip() == '':
+                        print("NO ES POSIBLE DEJAR EL CORREO EN BLANCO, INTENTE DE NUEVO")
+
+                    elif not re.match(validacion, correocliente):
+                        print("EL FORMATO DEL CORREO ELECTRÓNICO ES INCORRECTO, INTENTE DE NUEVO")
+
+                    else:
+                        break
+
+                while True:
+                    rfc_cliente = input("Ingrese el RFC del cliente (formato: ABCD123456XXX): ").strip().upper()
+
+                    if rfc_cliente.strip() == '':
+                        print("NO ES POSIBLE DEJAR EL RFC EN BLANCO, INTENTE DE NUEVO")
+
+                    elif not re.match(r'^[A-Z&Ñ]{4}(0[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-3])(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])[0-9A-Z]{3}$', rfc_cliente):
+                        print("EL FORMATO DEL RFC ES INCORRECTO, INTENTE DE NUEVO (formato: ABCD123456XXX)")
+
+                    else:
+                        break
+
+                notacreada = RegistroNota(nombrecliente, folio, fechanota, correocliente, rfc_cliente)
+
+                while True:
+                    nombreservicio = input("Ingrese el nombre del servicio: ")
+                    if nombreservicio.strip() == '':
+                        print("NO ES POSIBLE DEJAR EL NOMBRE DEL SERVICIO EN BLANCO, INTENTE DE NUEVO")
+
+                    elif nombreservicio.isdigit():
+                        print("HA INGRESADO NÚMEROS EN VEZ DE LETRAS, INTENTE DE NUEVO")
+
+                    else:
+                        while True:
+                            costoservicio = input("Ingrese el costo del servicio: ")
+                            if costoservicio.strip() == '':
+                                print("NO ES POSIBLE DEJAR EL COSTO DEL SERVICIO EN BLANCO, INTENTE DE NUEVO")
+
+                            elif not costoservicio.isdigit():
+                                print("HA INGRESADO LETRAS EN VEZ DE NÚMEROS, INTENTE DE NUEVO")
+
+                            else:
+                                notacreada.agregar_servicio(nombreservicio, costoservicio)
+                                break
+
+                        otroservicio = input("¿Desea agregar otro servicio? (SI/NO): ")
+                        if otroservicio.upper() == "NO":
+                            break
+
+                listanotas.append(notacreada)
+                foliomax = folio
+                break
+
+        except KeyboardInterrupt:
+            print("\nUsted ha decidido interrumpir el programa")
+            break
+
+    for notacreada in listanotas:
+        print(f"\nNota:")
+        print(f"Folio: {notacreada.folio}")
+        print(f"Fecha: {notacreada.fecha}")
+        print(f"Nombre del cliente: {notacreada.nombrecliente}")
+        print(f"RFC del cliente: {notacreada.rfc}")
+        print(f"Correo electrónico del cliente: {notacreada.correo}")
+        print(f"Servicios realizados:")
+        for nombreservicio, costoservicio in notacreada.servicios.items():
+            print(f"Servicio: {nombreservicio}\t Costo: ${costoservicio}")
+        print(f"Total a pagar: $ {notacreada.total_nota()}")
+
+def consultar_por_periodo(listanotas):
+    try:
+        fecha_inicial = input("Ingrese la fecha inicial (DD-MM-AAAA) o presione Enter para usar la fecha 01-01-2000: ")
+        if fecha_inicial.strip() == '':
+            fecha_inicial = datetime.date(2000, 1, 1)
+        else:
+            fecha_inicial = datetime.datetime.strptime(fecha_inicial, "%d-%m-%Y").date()
+
+        fecha_final = input("Ingrese la fecha final (DD-MM-AAAA) o presione Enter para usar la fecha actual: ")
+        if fecha_final.strip() == '':
+            fecha_final = datetime.date.today()
+        else:
+            fecha_final = datetime.datetime.strptime(fecha_final, "%d-%m-%Y").date()
+
+        if fecha_final < fecha_inicial:
+            print("LA FECHA FINAL DEBE SER IGUAL O POSTERIOR A LA FECHA INICIAL")
+            return
+
+        notas_periodo = [nota for nota in listanotas if fecha_inicial <= nota.fecha <= fecha_final]
+
+        if not notas_periodo:
+            print("NO HAY NOTAS CREADAS EN ESE PERIODO")
+        else:
+            print(f"\nNotas del período:")
+            for nota in notas_periodo:
+                print(f"n\Folio: {nota.folio}")
+                print(f"Fecha: {nota.fecha}")
+                print(f"Nombre del Cliente: {nota.nombrecliente}")
+                print(f"Total a pagar: ${nota.total_nota()}")
+
+            arreglo_notas = np.array([nota.total_nota() for nota in notas_periodo])
+            promedio_notas = np.mean(arreglo_notas)
+            print(f"\nEl monto promedio de las notas en el período es de: ${promedio_notas:.2f}")
+
+    except ValueError:
+        print("Formato de fecha incorrecto.")
+
+def consultar_por_folio(listanotas):
+    while True:
+        folio = input("Ingrese el folio de la nota a consultar: ")
+
+        if folio.strip()== '':
+            print("NO ES POSIBLE DEJAR EL FOLIO EN BLANCO, INTENTE DE NUEVO")
+
+        elif not folio.isdigit():
+            print("HA INGRESADO LETRAS EN VEZ DE NÚMEROS, INTENTE DE NUEVO")
+        else:
+            break
+
+    nota_encontrada = None
+
+    for nota in listanotas:
+        if str(nota.folio) == folio:
+            nota_encontrada = nota
+            break
+
+    if nota_encontrada:
+        print(f"Nota encontrada:")
+        print(f"Folio: {nota_encontrada.folio}")
+        print(f"Fecha: {nota_encontrada.fecha}")
+        print(f"Nombre del cliente: {nota_encontrada.nombrecliente}")
+        print("Servicios:")
+        for nombreservicio, costoservicio in nota_encontrada.servicios.items():
+            print(f"Servicio: {nombreservicio}, Costo: ${costoservicio}")
+        print(f"Total a pagar: ${nota_encontrada.total_nota()}")
+    else:
+        print("LA NOTA NO SE ENCUENTRA EN EL SISTEMA O FUE CANCELADA")
+
+
+def consulta_por_cliente(listanotas):
+    rfcs_unicos = sorted(set(nota.rfc for nota in listanotas)) #se hace un conjunto para que no se repitan, y con sorted los ordenas
+    
+    print("RFCs disponibles para consultar:")
+    for folio, rfc in enumerate(rfcs_unicos, start=1): #se enumera cada nota y por ende cada rfc, hay que empezarlo en 1
+        print(f"{folio}. {rfc}")
+
+    while True:
+        try:
+            opcion = int(input("Seleccione el folio correspondiente al RFC a consultar (0 para salir): "))
+            
+            if opcion == 0:
+                break
+            
+            if opcion < 1 or opcion > len(rfcs_unicos):
+                print("OPCIÓN INVALIDA, ELIJA UN NUMERO DE FOLIO VÁLIDO")
+                continue
+            
+            rfc_seleccionado = rfcs_unicos[opcion - 1]
+            
+            notas_rfc = [nota for nota in listanotas if nota.rfc == rfc_seleccionado]
+            print(f"\nNotas para el cliente con el RFC: {rfc_seleccionado}:\n")
+            for nota in notas_rfc:
+                print(f"Folio: {nota.folio}")
+                print(f"Fecha: {nota.fecha}")
+                print(f"Nombre del cliente: {nota.nombrecliente}")
+                print(f"Correo electrónico del cliente: {nota.correo}")
+                print("Servicios realizados:")
+                for nombreservicio, costoservicio in nota.servicios.items():
+                    print(f"Servicio: {nombreservicio}\t Costo: ${costoservicio}")
+                print(f"Total a pagar: ${nota.total_nota()}")
+            
+            montos = [nota.total_nota() for nota in notas_rfc]
+            monto_promedio = np.mean(montos)
+            print(f"Monto promedio de las notas para el cliente {rfc_seleccionado}: ${monto_promedio:.2f}")
+            
+        except ValueError:
+            print("Por favor, ingrese un folio válido.")
+
+            exportar_excel = input("¿Desea exportar esta información a un archivo Excel? (SI/NO): ").strip().upper()
+
+            if exportar_excel == "SI":
+                nombre_archivo = f"{rfc_seleccionado}_{datetime.date.today()}.xlsx"
+                exportar_a_excel(notas_rfc, nombre_archivo)
+                print(f"Se ha exportado la información a '{nombre_archivo}'.")
+                break
+            
+            if exportar_excel== "NO":
+                break
+
+        except Exception as e:
+            print(f"Ocurrió un error: {str(e)}")
+
+def exportar_a_excel(notas_rfc, nombre_archivo):
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = "Notas"
+
+    # escribir encabezados
+    sheet['A1'] = "Folio"
+    sheet['B1'] = "Fecha"
+    sheet['C1'] = "Nombre del Cliente"
+    sheet['D1'] = "Servicio"
+    sheet['E1'] = "Costo"
+    sheet['F1'] = "Total a pagar"
+
+    fila = 2
+    for nota in notas_rfc:
+        sheet[f'A{fila}'] = nota.folio
+        sheet[f'B{fila}'] = nota.fecha
+        sheet[f'C{fila}'] = nota.nombrecliente
+        for nombreservicio, costoservicio in nota.servicios.items():
+            sheet[f'D{fila}'] = nombreservicio
+            sheet[f'E{fila}'] = costoservicio
+            row += 1
+        sheet[f'F{fila}'] = nota.total_nota()
+        row += 1
+
+    workbook.save(nombre_archivo)
+
+def CancelarNota(listanotas):
+    try:
+        while True:
+            folioCancelar = input("Ingrese el folio de la nota que desea cancelar o '0' para salir: ").strip()
+
+            if folioCancelar.strip()== '':
+                print("NO ES POSIBLE DEJAR EL FOLIO EN BLANCO, INTENTE DE NUEVO")
+
+            elif not folioCancelar.isdigit():
+                print("HA INGRESADO LETRAS EN VEZ DE NÚMEROS, INTENTE DE NUEVO")
+
+            elif folioCancelar == "0":
+                print("USTED HA SALIDO DEL SERVICIO CANCELAR NOTA")
+                return
+
+            else:
+                break
+
+        folioCancelar = int(folioCancelar)
+        notaBuscada = next((nota for nota in listanotas if nota.folio == folioCancelar), None)
+
+        if notaBuscada:
+            if notaBuscada.cancelada:
+                print("LA NOTA YA HA SIDO CANCELADA")
+            else:
+                print("\nDetalles de la nota a cancelar:")
+                print(f"Folio: {notaBuscada.folio}")
+                print(f"Fecha: {notaBuscada.fecha}")
+                print(f"Nombre del cliente: {notaBuscada.nombrecliente}")
+                print(f"RFC del cliente: {notaBuscada.rfc}")
+                print(f"Correo electrónico del cliente: {notaBuscada.correo}")
+                print("Servicios realizados:")
+                for nombreservicio, costoservicio in notaBuscada.servicios.items():
+                    print(f"Servicio: {nombreservicio}\t Costo: ${costoservicio}")
+                print(f"Total a pagar: $ {notaBuscada.total_nota()}")
+                confirmacion = input("¿Desea cancelar esta nota? (SI/NO): ").strip().upper()
+                if confirmacion == "SI":
+                    notaBuscada.cancelada = True
+                    print("NOTA CANCELADA ÉXITOSAMENTE")
+                    listanotas.pop(listanotas.index(notaBuscada))
+                    NotasCanceladas.append(notaBuscada)
+                else:
+                    print("LA NOTA NO HA SIDO CANCELADA")
+        else:
+            print("EL FOLIO NO SE ENCUENTRA EN EL SISTEMA")
+
+    except ValueError:
+        print("INGRESE UN NÚMERO DE FOLIO VÁLIDO")
+
+def recuperar_nota(NotasCanceladas, listanotas):
+    try:
+        if not NotasCanceladas:
+            print("No hay notas canceladas para recuperar")
+            return
+
+        while True:
+            print("Notas canceladas:")
+            print("Folio\tFecha\t\tNombre del Cliente")
+            for nota in NotasCanceladas:
+                print(f"{nota.folio}\t{nota.fecha}\t{nota.nombrecliente}")
+
+            folio_recuperar = input("Ingrese el folio de la nota que desea recuperar o '0' para salir al menú principal: ").strip()
+
+            if folio_recuperar.strip() == '':
+                print("NO ES POSIBLE DEJAR EL FOLIO EN BLANCO, INTENTE DE NUEVO")
+                continue
+
+            if not folio_recuperar.isdigit():
+                print("HA INGRESADO LETRAS EN VEZ DE NÚMEROS, INTENTE DE NUEVO")
+                continue
+
+            if folio_recuperar == "0":
+                print("USTED HA REGRESADO AL MENÚ PRINCIPAL")
+                return
+
+            folio_recuperar = int(folio_recuperar)
+            nota_recuperar = None
+
+            for nota in NotasCanceladas:
+                if nota.folio == folio_recuperar:
+                    nota_recuperar = nota
+                    break
+
+            if nota_recuperar:
+                print("\nDetalles de la nota a recuperar:")
+                print(f"Folio: {nota_recuperar.folio}")
+                print(f"Fecha: {nota_recuperar.fecha}")
+                print(f"Nombre del cliente: {nota_recuperar.nombrecliente}")
+                print("Servicios realizados:")
+                for nombreservicio, costoservicio in nota_recuperar.servicios.items():
+                    print(f"Servicio: {nombreservicio}\t Costo: ${costoservicio}")
+                print(f"Total a pagar: $ {nota_recuperar.total_nota()}")
+
+                confirmacion = input("¿Desea recuperar esta nota? (SI/NO): ").strip().upper()
+                if confirmacion == "SI":
+                    nota_recuperar.cancelada = False
+                    print("NOTA RECUPERADA CON ÉXITO")
+                    NotasCanceladas.pop(NotasCanceladas.index(nota_recuperar))
+                    listanotas.append(nota_recuperar)
+                    print("USTED HA REGRESADO AL MENÚ PRINCIPAL")
+                    return
+                else:
+                    print("LA NOTA NO HA SIDO RECUPERADA")
+            else:
+                print("EL FOLIO NO SE ENCUENTRA EN LA LISTA")
+
+    except ValueError:
+        print("INGRESE UN NÚMERO DE FOLIO VÁLIDO")
+
+
+
+while True:
+    print("\nMenú Principal:")
+    print("1. Registrar una nota")
+    print("2. Consultas y Reportes")
+    print("3. Cancelar una nota")
+    print("4. Recuperar una nota")
+    print("5. Salir")
+
+    opcion_menu = input("Seleccione una opción: ")
+
+    if opcion_menu == "1":
+        CrearNota()
+    elif opcion_menu == "2":
+        while True:
+            print("\nSubMenu :")
+            print("1. Consultar nota por periodo")
+            print("2. Consultar nota por folio")
+            print("3. Consultar nota por cliente")
+            print("4. Volver al menú principal")
+
+            opcion_submenu = input("Seleccione una opción: ")
+
+            if opcion_submenu == "1":
+                consultar_por_periodo(listanotas)
+            elif opcion_submenu == "2":
+                consultar_por_folio(listanotas)
+            elif opcion_submenu == "3":
+                consulta_por_cliente(listanotas)
+            elif opcion_submenu == "4":
+                break
+            else:
+                print("Opción no válida.")
+    elif opcion_menu == "3":
+        CancelarNota(listanotas)
+    elif opcion_menu == "4":
+        recuperar_nota(NotasCanceladas, listanotas)
+    elif opcion_menu == "5":
+        confirmacion = input("¿Está seguro de que desea salir? (SI/NO): ").strip().upper()
+        if confirmacion == "SI":
+            guardar_estado(listanotas)
+            print("Gracias por usar el sistema. Se ha guardado el archivo csv.")
+            break
+    else:
+        print("Opción no válida.")
